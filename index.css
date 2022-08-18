@@ -1,0 +1,40 @@
+.wrapper{
+    display: flex;
+	position: absolute;
+	top: 10px;
+	width: 100%;
+	text-align: center;
+	z-index: 100;
+    justify-content: center;
+
+}
+.items{
+    display: flex;
+	position: absolute;
+	bottom: 10px;
+    flex-direction: column;
+	width: 100%;
+    left: 60px;
+	text-align: center;
+	z-index: 100;
+    justify-content: center;
+}
+
+#info {
+    color: red;
+    font-size: 44px;
+    letter-spacing: 3px;
+}
+
+.player
+{
+ font-size: 22px;
+ margin: 30px;
+}
+.com
+{
+ font-size: 22px;
+ margin: 30px;
+}
+
+body{margin:0;overflow:hidden; height:100vh;}ƒ
