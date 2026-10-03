@@ -1,0 +1,11 @@
+{
+  "name": "3d-ping-pong",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "3D table tennis in three.js: real ball physics, cursor-controlled paddle, spin shots.",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "start": "python3 -m http.server 5503"
+  }
+}
