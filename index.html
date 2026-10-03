@@ -1,35 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="./index.css">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Table Tennis</title>
+  <link rel="stylesheet" href="./index.css">
 </head>
 <body>
-    <div class="wrapper">
-        <div class="player" id="p1">0</div>
-        <div id="info">vs</div>
-        <div class="com" id="p2">0</div>
-    </div>
-   <div class="items">
-    <svg width="30" height="30" viewBox="0 0 10 10">
-        <g transform="rotate(0, 5,5)">
-          <path d="M5,4 L7,6 L3,6 L5,4" />
-        </g>
-      </svg>
+  <div id="app"></div>
 
-      <svg width="30" height="30" viewBox="0 0 10 10">
-        <g transform="rotate(180, 5,5)">
-          <path d="M5,4 L7,6 L3,6 L5,4" />
-        </g>
-      </svg>
-   </div>
-    <script src="https://cdn.jsdelivr.net/npm/three-orbitcontrols@2.110.3/OrbitControls.min.js"></script>
-    <script type="module">
-        import App from "./app.js";
-        window.onload = ()=>{new App();}
-    </script>
+  <header class="scoreboard">
+    <div class="side you">
+      <span class="serve-dot" id="serve-human"></span>
+      <span class="name">YOU</span>
+      <span class="score" id="score-human">0</span>
+    </div>
+    <div class="mid">
+      <span class="vs">vs</span>
+      <span class="difficulty" id="difficulty-label">NORMAL</span>
+    </div>
+    <div class="side cpu">
+      <span class="score" id="score-ai">0</span>
+      <span class="name">CPU</span>
+      <span class="serve-dot" id="serve-ai"></span>
+    </div>
+  </header>
+
+  <div class="message-wrap">
+    <div class="message" id="message"></div>
+    <div class="message-sub" id="message-sub"></div>
+  </div>
+
+  <div class="shot" id="shot"></div>
+  <div class="hint" id="hint"></div>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h1 id="overlay-title">3D TABLE TENNIS</h1>
+      <p class="sub" id="overlay-sub">Pick a difficulty to start</p>
+      <div class="buttons">
+        <button data-difficulty="easy">Easy</button>
+        <button data-difficulty="normal" class="primary">Normal</button>
+        <button data-difficulty="hard">Hard</button>
+      </div>
+      <ul class="howto">
+        <li><b>Move the mouse</b> — the paddle follows your cursor. Meet the ball to return it.</li>
+        <li><b>Flick up</b> as you hit — topspin: the ball dips, so you can hit harder.</li>
+        <li><b>Flick down</b> — backspin: slow floating chop that checks on the bounce.</li>
+        <li><b>Flick sideways</b> — sidespin: the ball curves in the air.</li>
+        <li><b>Hit off-center</b> to aim: left/right of the paddle angles the shot, high/low lofts it.</li>
+        <li><b>Click or Space</b> to toss your serve; the paddle hits it on the way down.</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
 </body>
 </html>

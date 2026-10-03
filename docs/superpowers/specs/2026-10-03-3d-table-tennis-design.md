@@ -86,15 +86,22 @@ Inputs: ball state at contact, hitter side (+1/−1), `mode` ('rally' | 'serve')
 shot is aimed at), `lift` (−1…1, extra loft), paddle velocity `pv` (m/s, tangential), power scale.
 
 Outgoing speed: `s = clamp(base + powerGain·min(|pv|, pvCap) + 0.15·|v_in|, sMin, sMax)`;
-rally: base 5.5, gain 1.6, cap 4 → 4…14 m/s. Serve: base 4.2, gain 0.8, cap 3 → 3.5…7.
+rally: base 5.5, gain 1.6, cap 4 → 4…14 m/s. Serve: base 6.0, gain 0.5, cap 3 → 5.8…7.5
+(slower serves cannot clear the net after the friction of the first bounce).
 
-Target point: rally → `(aimX, tableTop, −side·L/2·depthFrac(s))` with `depthFrac` linear from 0.5
+Rally target point: `(aimX, tableTop, −side·L/2·depthFrac(s))` with `depthFrac` linear from 0.5
 at s=4 to 1.15 at s=14 (hard flat shots are aimed long; topspin is what brings them back in).
-Serve → `(aimX, tableTop, +side·L/2·0.45)` (own side first).
 
-Launch elevation: solve the drag-free projectile angle to the target at speed s (lower solution,
-45° if unreachable), then `+ lift·12°`, clamp −10°…60°. Direction = horizontal unit vector to the
-target rotated up by that angle.
+Rally launch elevation: the drag-free projectile angle to the target at speed s (lower solution,
+45° if unreachable) `+ lift·12°`, but never below the angle that clears the net top by 8 cm.
+The net-clearance estimate uses quadratic drag and treats the Magnus force of the outgoing spin as
+extra gravity, so topspin loops are lifted enough not to net while flat hard shots still fly long.
+Clamp −10°…60°.
+
+Serve: the ball must bounce on the server's side, clear the net and land in. The stroke scans
+launch angles (−42.5°…15°) and a lateral aim correction (±0.6 m, for the sidespin curve) with the
+real physics, coarse pass then refinement, and keeps the best legal trajectory (landing near 55 %
+of the receiver's half, net clearance ≥ 6 cm preferred). ~1–6 ms per serve.
 
 Spin: `w_out = −0.4·w_in + spinGain·(pv_t × n)` with n = direction toward the opponent,
 spinGain = 80 rad/s per m/s, |w| capped at 420 rad/s. Up-flick ⇒ topspin, down ⇒ backspin,
@@ -157,13 +164,15 @@ makes the AI miss more.
 
 ## Presentation (src/scene.js, hud, audio)
 
-- Camera: perspective 50°, at (0, 1.95, 3.1) looking at (0, 0.85, −0.4); eases ±0.12 m in x with
-  the paddle for parallax.
+- Camera: perspective 50°, at (0, 1.8, 3.05) looking at (0, 0.68, −0.5); eases ±0.12 m in x with
+  the paddle for parallax. `ColorManagement.legacyMode = false` so hex colors are sRGB.
 - Table: blue top with white edge/center lines, dark legs; net with posts (semi-transparent mesh
-  material); floor plane; directional light with shadow map (2048) + hemisphere light. The ball's
-  shadow is the main depth cue.
-- Ball: white sphere with an orange two-band canvas texture so spin is visible; mesh orientation
-  integrates `w`. Short fading trail (line, last 24 positions).
+  texture); red hall mat on a dark floor, gradient sky, fog; directional light with shadow map
+  (2048) + hemisphere light. The ball's shadow is the main depth cue.
+- Ball: white sphere (drawn at r = 0.03 for legibility) with an orange two-band canvas texture so
+  spin is visible; mesh orientation integrates `w`. A ring around the ball shows the spin axis,
+  colored red (topspin) / blue (backspin) / yellow (sidespin), opacity by spin rate. Short trail
+  (line, last 28 positions).
 - Paddles: red rubber disc (human), black disc (AI), wooden handle; tilts slightly with velocity.
 - HUD: scores, server dot, difficulty overlay (start / restart), center messages
   ("OUT", "NET", "MISS", "DOUBLE BOUNCE", "POINT"), spin readout after each human hit
@@ -181,5 +190,8 @@ makes the AI miss more.
   in; up-flick ⇒ classified topspin, sideways ⇒ sidespin.
 - rules: scoring paths (long, net dribble, miss, double bounce), serve rotation incl. deuce,
   win-by-2, canHit gating.
-- ai: predicted intercept matches a direct simulation.
-- Rendering smoke: headless Chrome screenshot of the served page + console error scan.
+- ai: predicted intercept matches a direct simulation; speed limit; spin raises reading error;
+  every difficulty's shot choices land in; serve position/shot legal.
+- Rendering smoke (`npm run smoke`, tests/browser/run.py): headless Chrome loads the real page,
+  drives 120 s of automated play with synthetic frames, checks for JS errors, hit/point counts and
+  a non-empty rendered frame, and saves screenshots (menu, frozen mid-rally, end state).

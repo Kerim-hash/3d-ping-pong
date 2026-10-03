@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>smoke</title>
+  <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+<script type="module">
+  // Browser smoke test (run with tests/browser/run.py, or serve the repo root and open
+  // /tests/browser/smoke.html?seconds=20[&freeze=1][&render=0]). Loads the real page markup,
+  // starts a match and plays the human side automatically, then writes the result JSON into
+  // <pre id="smoke-result"> and the console. freeze=1 pauses mid-rally for a screenshot.
+  const params = new URLSearchParams(location.search);
+  const seconds = Number(params.get('seconds') || 20);
+  const freeze = params.get('freeze') === '1';
+  const difficulty = params.get('difficulty') || 'normal';
+  const render = params.get('render') !== '0'; // render=0: skip WebGL frames (fast statistics run)
+  const errors = [];
+  window.addEventListener('error', (e) => errors.push(String(e.message)));
+  window.addEventListener('unhandledrejection', (e) => errors.push(String(e.reason)));
+
+  const html = await (await fetch('/index.html')).text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  for (const node of [...doc.body.children]) if (node.tagName !== 'SCRIPT') document.body.appendChild(node);
+
+  const { Game } = await import('/src/game.js');
+  const { predictIntercept } = await import('/src/ai.js');
+  const { TABLE, PADDLE } = await import('/src/constants.js');
+  // Headless Chrome barely fires requestAnimationFrame under virtual time, so the page drives
+  // frames itself with synthetic 60 Hz timestamps. Rendering is skipped until the final frame.
+  const game = new Game(document.getElementById('app'), { autoLoop: false });
+  window.__game = game;
+  const realRender = game.view.renderer.render.bind(game.view.renderer);
+  game.view.renderer.render = () => {};
+  game.lastFrame = 0;
+  game.startMatch(difficulty);
+
+  const planeZ = TABLE.length / 2 + PADDLE.planeOffset;
+  const stats = { humanHits: 0, aiHits: 0, points: 0, reasons: {}, maxRally: 0, rally: 0, frames: 0, frozen: false };
+  let lastHitter = null;
+  let lastScore = 0;
+  let now = 0;
+  const FRAME = 1000 / 60;
+
+  function drive() {
+    stats.frames += 1;
+    now += FRAME;
+    game.frame(now);
+    const m = game.match;
+    const b = game.ball;
+    if (m.lastHitter !== lastHitter && m.phase === 'rally') {
+      if (m.lastHitter === 1) stats.humanHits += 1;
+      if (m.lastHitter === -1) stats.aiHits += 1;
+      stats.rally += 1;
+      stats.maxRally = Math.max(stats.maxRally, stats.rally);
+      lastHitter = m.lastHitter;
+    }
+    const total = m.score(1) + m.score(-1);
+    if (total !== lastScore) {
+      stats.points = total;
+      const r = m.lastResult?.reason || '?';
+      stats.reasons[r] = (stats.reasons[r] || 0) + 1;
+      lastScore = total;
+      stats.rally = 0;
+      lastHitter = null;
+    }
+
+    const pos = game.input.position;
+    if (m.phase === 'serve' && m.server === 1) {
+      if (!game.tossed) game.input.clicks = 1;
+      pos.x += (0.2 - pos.x) * 0.2;
+      pos.y += (TABLE.top + 0.3 - pos.y) * 0.2;
+    } else if (m.phase === 'rally' && b.v.z > 0 && m.lastHitter === -1) {
+      const pred = predictIntercept(b, planeZ);
+      if (pred) {
+        pos.x += (pred.p.x - pos.x) * 0.35;
+        // approach from below in the last 120 ms to brush the ball upward (topspin)
+        const early = pred.time > 0.12;
+        const targetY = early ? pred.p.y - 0.12 : pred.p.y + 0.02;
+        pos.y += (targetY - pos.y) * (early ? 0.3 : 0.6);
+      }
+    } else {
+      pos.x += (0 - pos.x) * 0.1;
+      pos.y += (TABLE.top + 0.25 - pos.y) * 0.1;
+    }
+
+    if (freeze && m.phase === 'rally' && b.p.z < 0.6 && b.p.z > -0.2 && b.v.z < 0 && stats.humanHits >= 1) {
+      game.state = 'frozen';
+      stats.frozen = true;
+      return false;
+    }
+    return now / 1000 <= seconds && game.state !== 'over';
+  }
+
+  function finish() {
+    stats.errors = errors;
+    stats.state = game.state;
+    stats.score = `${game.match.score(1)}-${game.match.score(-1)}`;
+    stats.ball = { ...game.ball.p };
+    game.view.renderer.render = realRender;
+    game.syncVisuals(0);
+    realRender(game.view.scene, game.view.camera); // one real frame for the screenshot
+    // Grab the WebGL frame directly (headless screenshots do not always include the canvas)
+    // and measure how much of it differs from the background color.
+    try {
+      const canvas = game.view.renderer.domElement;
+      const small = document.createElement('canvas');
+      small.width = 64;
+      small.height = 40;
+      const g = small.getContext('2d');
+      g.drawImage(canvas, 0, 0, 64, 40);
+      const d = g.getImageData(0, 0, 64, 40).data;
+      let lit = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (Math.abs(d[i] - 20) + Math.abs(d[i + 1] - 23) + Math.abs(d[i + 2] - 30) > 40) lit += 1;
+      }
+      stats.litFraction = lit / (64 * 40);
+      stats.canvasSize = [canvas.width, canvas.height];
+      const img = document.createElement('img');
+      img.id = 'smoke-frame';
+      img.style.display = 'none';
+      img.src = canvas.toDataURL('image/png');
+      document.body.appendChild(img);
+    } catch (e) {
+      errors.push('frame capture: ' + e);
+    }
+    const pre = document.createElement('pre');
+    pre.id = 'smoke-result';
+    pre.style.display = 'none';
+    pre.textContent = 'SMOKE RESULT ' + JSON.stringify(stats);
+    document.body.appendChild(pre);
+    console.log(pre.textContent);
+    document.title = 'smoke-done';
+  }
+
+  try {
+    while (drive()) { /* synchronous simulation */ }
+  } catch (e) {
+    errors.push(String(e && e.stack || e));
+  }
+  finish();
+</script>
+</body>
+</html>
