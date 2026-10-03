@@ -101,12 +101,18 @@ function rallyStroke({ ball, side, aimX, lift, speed, w, kick, n, t }) {
 }
 
 // Serve: the ball must bounce on the server's side, clear the net and land in. The server
-// "knows how to serve": scan launch angles with the real physics and keep the best legal one.
+// "knows how to serve": scan launch angles (and a lateral correction for the spin curve) with
+// the real physics and keep the best legal trajectory. Coarse pass, then refine around the best.
 function serveStroke({ ball, side, aimX, speed, w, kick, t }) {
-  const dir = normalize(vec(aimX - ball.p.x, 0, -ball.p.z));
   const wantLand = -side * HALF_L * t.serveLandFrac;
+  const tried = new Set();
   let best = null;
-  for (let deg = -45; deg <= 20; deg += 1.5) {
+
+  const evaluate = (deg, dx) => {
+    const key = `${deg.toFixed(2)}|${dx.toFixed(2)}`;
+    if (tried.has(key)) return;
+    tried.add(key);
+    const dir = normalize(vec(aimX + dx - ball.p.x, 0, -ball.p.z));
     const elev = deg * DEG;
     const v = velocityAt(elev, speed, dir, kick);
     const b = createBall({ p: ball.p, v, w });
@@ -118,15 +124,18 @@ function serveStroke({ ball, side, aimX, speed, w, kick, t }) {
       prevZ = s.p.z;
       for (const e of ev) if (['bounce', 'net', 'endline', 'dead'].includes(e.type)) seq.push(e);
       return seq.length >= 2 || ev.some((e) => e.type !== 'bounce');
-    }, 2.5, 1 / 120);
-    const legal = seq.length === 2 && seq[0].type === 'bounce' && seq[0].side === side && seq[1].type === 'bounce' && seq[1].side === -side;
+    }, 2.5);
     const ownFirst = seq.length >= 1 && seq[0].type === 'bounce' && seq[0].side === side;
+    const legal = ownFirst && seq.length === 2 && seq[1].type === 'bounce' && seq[1].side === -side;
     let score = legal ? 10 : ownFirst ? 0 : -10;
-    if (legal) {
-      score -= Math.abs(seq[1].p.z - wantLand);
-      if (clearance < 0.04) score -= 1;
-    }
-    if (!best || score > best.score) best = { score, v, elev };
+    if (legal) score -= Math.abs(seq[1].p.z - wantLand) + Math.max(0, 0.06 - clearance) * 20 + Math.abs(dx) * 0.5;
+    if (!best || score > best.score) best = { score, v, elev, deg, dx };
+  };
+
+  for (let deg = -42.5; deg <= 15; deg += 5) for (const dx of [-0.6, 0, 0.6]) evaluate(deg, dx);
+  const { deg: d0, dx: x0 } = best;
+  for (const dd of [-3.75, -2.5, -1.25, 0, 1.25, 2.5, 3.75]) {
+    for (const ddx of [-0.3, -0.15, 0, 0.15, 0.3]) evaluate(d0 + dd, x0 + ddx);
   }
   return { v: best.v, w, speed, elevation: best.elev };
 }
