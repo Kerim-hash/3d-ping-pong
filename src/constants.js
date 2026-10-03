@@ -40,10 +40,11 @@ export const PADDLE = {
 
 export const STROKE = {
   rally: { base: 5.5, powerGain: 1.6, pvCap: 4, min: 4, max: 14 },
-  serve: { base: 4.2, powerGain: 0.8, pvCap: 3, min: 3.5, max: 7 },
+  serve: { base: 5.4, powerGain: 0.7, pvCap: 3, min: 5, max: 7.5 },
   incomingSpeedGain: 0.15,
   depthFrac: { atMin: 0.5, atMax: 1.15, sMin: 4, sMax: 14 },
-  serveDepthFrac: 0.45,
+  serveLandFrac: 0.55,    // where a serve should land on the receiver's side (fraction of half length)
+  netMargin: 0.08,        // rally shots are lofted to clear the net by at least this
   liftDegrees: 12,
   elevationMin: -10,
   elevationMax: 60,
